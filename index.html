@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#9c3d26">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Fermantasyon">
+<title>Fermantasyon Takip</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+:root{--bg:#f5efe7;--card:#fffaf3;--ink:#3b2f28;--mut:#8a7a6e;--ac:#9c3d26;--ac2:#e07a2f;--line:#eadfd2;--r:16px}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);-webkit-text-size-adjust:100%}
+header{position:sticky;top:0;z-index:5;background:var(--ac);color:#fff;padding:calc(10px + env(safe-area-inset-top)) 14px 10px}
+header .top{display:flex;justify-content:space-between;align-items:center;max-width:900px;margin:0 auto}
+header h1{font-size:18px;margin:0}
+header .icon{background:none;border:0;color:#fff;font-size:24px;cursor:pointer}
+nav{display:flex;gap:6px;margin:8px auto 0;max-width:900px}
+nav button{flex:1;background:#ffffff26;color:#fff;border:0;border-radius:99px;padding:8px;font:inherit;font-size:14px;cursor:pointer}
+nav button.on{background:#fff;color:var(--ac);font-weight:600}
+main{max-width:900px;margin:0 auto;padding:10px 12px 80px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin:10px 0;box-shadow:0 2px 8px #6b3a2010}
+.click{cursor:pointer}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.between{justify-content:space-between}
+.row>input{flex:1;width:auto}
+h2{font-size:20px;margin:8px 0}h3{font-size:15px;margin:0 0 10px}
+.mt{margin-top:12px}.small{font-size:13px}.muted{color:var(--mut)}.red{color:#b3261e}
+.pill{font-size:12px;padding:4px 10px;border-radius:99px;white-space:nowrap}
+.st-fermentation{background:#fde3cf;color:#8a4210}.st-cold_crash{background:#d9ecf7;color:#1d5b80}
+.st-transfer{background:#efe0f5;color:#6a2c80}.st-aging{background:#f5ecc9;color:#7a5d00}
+.st-stock{background:#dcefd5;color:#3a6b28}.st-done{background:#e5e1dc;color:#555}
+.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:10px 0}
+.kpis div{background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 10px}
+.kpis small{display:block;color:var(--mut);font-size:11px}.kpis b{font-size:16px}
+@media(min-width:600px){.kpis{grid-template-columns:repeat(4,1fr)}.kpis.k6{grid-template-columns:repeat(3,1fr)}}
+.bar{height:8px;background:var(--line);border-radius:9px;overflow:hidden}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--ac2),var(--ac))}
+.stepper{display:flex;margin:10px 0 4px}
+.step{flex:1;text-align:center;position:relative}
+.step span{display:block;width:14px;height:14px;border-radius:50%;background:#d8cabb;margin:0 auto 4px;position:relative;z-index:1}
+.step:not(:first-child)::before{content:'';position:absolute;top:6px;right:50%;width:100%;height:2px;background:#d8cabb}
+.step.past span,.step.cur span,.step.past::before,.step.cur::before{background:var(--ac)}
+.step.cur span{box-shadow:0 0 0 4px #9c3d2633}
+.step small{font-size:10px;color:var(--mut)}.step.cur small{color:var(--ink);font-weight:600}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}.grid2 .full{grid-column:1/-1}
+@media(max-width:420px){.grid2{grid-template-columns:1fr}}
+label{display:block;font-size:12px;color:var(--mut);margin:4px 0}
+input,textarea{width:100%;font:inherit;font-size:16px;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);margin-top:3px}
+.chk{display:flex;gap:10px;align-items:center;font-size:14px;color:var(--ink);padding:5px 0}
+.chk input{width:22px;height:22px;margin:0}
+.btn{background:var(--ac);color:#fff;border:0;border-radius:10px;padding:10px 14px;font:inherit;font-weight:600;margin-top:8px;cursor:pointer}
+.btn.ghost{background:#fff;color:var(--ac);border:1px solid var(--ac)}
+.btn.warn{background:var(--ac2)}
+.btn.danger{background:#fff;color:#b3261e;border:1px solid #b3261e}
+.btn.sm{padding:6px 12px;margin:0;font-size:13px}
+.link{background:none;border:0;color:var(--ac);font:inherit;padding:4px 0;cursor:pointer}
+.x{background:none;border:0;color:#b3261e;font-size:20px;cursor:pointer;padding:0 6px}
+.alert{background:#fff3e2;border:1px solid #f1d4ad;border-radius:10px;padding:9px 11px;font-size:13px;margin:8px 0}
+.alert.ok{background:#e6f2df;border-color:#bcd9ab}.alert.warn{background:#fdeccc;border-color:#f0c56b}
+.alert.muted{background:#f3eee8;border-color:var(--line);color:var(--mut)}
+.chart{position:relative;height:240px}
+.tbl{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:6px 5px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{color:var(--mut);font-weight:500}
+.li,.bottle{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--line)}
+.rate{display:flex;justify-content:space-between;align-items:center;margin:6px 0;font-size:14px}
+.dots{display:flex;gap:4px}
+.dots button{width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:#fff;font:inherit;color:var(--mut);cursor:pointer}
+.dots button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:flex;gap:6px;align-items:center;padding:6px 10px;border-radius:99px;border:1px solid var(--line);background:#fff;color:var(--ink);font-size:13px;margin:0}
+.chip input{width:auto;margin:0}.chip.on{border-color:var(--ac)}
+.info{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px}
+.info small{display:block;color:var(--mut);font-size:11px}.info span{font-size:14px}
+.mbg{position:fixed;inset:0;background:#0006;display:flex;align-items:flex-end;justify-content:center;z-index:20}
+.mbox{background:var(--card);width:100%;max-width:640px;max-height:90vh;overflow:auto;border-radius:18px 18px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom))}
+@media(min-width:700px){.mbg{align-items:center}.mbox{border-radius:18px}}
+#toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,80px);background:#333;color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;transition:.25s;z-index:30;opacity:0;pointer-events:none}
+#toast.show{transform:translate(-50%,0);opacity:1}#toast.bad{background:#b3261e}
+hr{border:0;border-top:1px solid var(--line);margin:14px 0 6px}
+</style>
+</head>
+<body>
+<header>
+  <div class="top"><h1>🍷 Fermantasyon</h1><button class="icon" onclick="refresh()" title="Yenile">⟳</button></div>
+  <nav>
+    <button data-v="list">Batch'ler</button>
+    <button data-v="compare">Karşılaştır</button>
+    <button data-v="settings">Ayarlar</button>
+  </nav>
+</header>
+<main id="app"></main>
+<div id="modal"></div>
+<div id="toast"></div>
+
+<script>
+// ============ SABİTLER ============
+const STAGES=[
+  {id:'fermentation',label:'Fermantasyon'},{id:'cold_crash',label:'Cold crash'},
+  {id:'transfer',label:'Aktarma'},{id:'aging',label:'Dinlendirme'},
+  {id:'stock',label:'Stok'},{id:'done',label:'Bitti'}
+];
+const K_ABV=0.1325, K_LOSS=0.447, K_ETOH=1.045;
+const COLORS=['#e07a2f','#c0392b','#2e86ab','#6a994e','#8e44ad','#d4a017'];
+const TASTE=[['aroma','Aroma'],['acidity','Asidite'],['sweetness','Tatlılık'],['alcohol_heat','Alkol sertliği'],['clarity','Berraklık']];
+const CHECKS={
+  cold_crash:['Balon çıkarıldı','Kapak kapatıldı','Buzdolabına kondu'],
+  transfer:['Şişeler sterilize edildi','Tortu bırakılarak yavaşça döküldü','PET sıkılıp havasız kapatıldı','Aktarılan miktar tartıldı'],
+  aging:['Şişeler buzdolabında','Etiket ve tarih yazıldı']
+};
+
+let sb=null;
+const S={batches:[],meas:[],events:[],tastings:[],bottles:[],view:'list',batchId:null,cmp:new Set(),cmpInit:false,charts:[]};
+
+// ============ YARDIMCILAR ============
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt=(n,d=1)=>(n==null||isNaN(n)||!isFinite(n))?'–':Number(n).toLocaleString('tr-TR',{minimumFractionDigits:d,maximumFractionDigits:d});
+const fg=n=>fmt(n,Number.isInteger(+n)?0:2);
+const fdt=iso=>new Date(iso).toLocaleString('tr-TR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+const fdate=iso=>new Date(iso).toLocaleDateString('tr-TR',{day:'2-digit',month:'2-digit',year:'numeric'});
+const localInput=(d=new Date())=>{const p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;};
+const toISO=v=>new Date(v).toISOString();
+const num=v=>(v===''||v==null)?null:Number(String(v).replace(',','.'));
+const hoursBetween=(a,b)=>(new Date(b)-new Date(a))/3600000;
+const getB=id=>S.batches.find(x=>x.id===id);
+const stageIdx=s=>STAGES.findIndex(x=>x.id===s);
+const stageLabel=s=>(STAGES.find(x=>x.id===s)||{}).label||s;
+const colorOf=b=>COLORS[S.batches.indexOf(b)%COLORS.length];
+
+function toast(t,bad){const e=$('#toast');e.textContent=t;e.className='show'+(bad?' bad':'');clearTimeout(e._t);e._t=setTimeout(()=>e.className='',2800);}
+function modal(h){$('#modal').innerHTML=`<div class="mbg" onclick="if(event.target===this)closeModal()"><div class="mbox">${h}</div></div>`;}
+function closeModal(){$('#modal').innerHTML='';}
+async function db(p){const {data,error}=await p;if(error){toast('Hata: '+error.message,true);throw error;}return data;}
+
+// ============ BAĞLANTI / VERİ ============
+function cfg(){try{return JSON.parse(localStorage.getItem('ferm_cfg'))||{};}catch{return {};}}
+function initClient(){const c=cfg();if(c.url&&c.key){sb=supabase.createClient(c.url,c.key);return true;}sb=null;return false;}
+async function loadAll(){
+  const q=t=>sb.from(t).select('*');
+  const r=await Promise.all([
+    q('ferm_batches').order('start_at'),q('ferm_measurements').order('measured_at'),
+    q('ferm_events').order('event_at'),q('ferm_tastings').order('tasted_at'),q('ferm_bottles').order('id')
+  ]);
+  const bad=r.find(x=>x.error);if(bad) throw bad.error;
+  [S.batches,S.meas,S.events,S.tastings,S.bottles]=r.map(x=>x.data);
+}
+async function refresh(){if(!sb){render();return;}try{await loadAll();}catch(e){toast('Veri alınamadı: '+e.message,true);}render();}
+
+// ============ HESAP MOTORU ============
+function sweetClass(g){if(g<4)return 'Kuru';if(g<12)return 'Yarı kuru';if(g<45)return 'Yarı tatlı';return 'Tatlı';}
+function calc(b){
+  const juice=Number(b.juice_ml)||0, added=Number(b.added_sugar_g)||0;
+  const totalSugar=juice*(Number(b.label_sugar)||0)/100+added;
+  const V=b.volume_l!=null?Number(b.volume_l):juice/1000+added*0.00062;
+  const expLoss=b.expected_loss_g!=null?Number(b.expected_loss_g):totalSugar*K_LOSS;
+  const potABV=K_ABV*expLoss/V;
+  const m0=Number(b.m0_g);
+  const ms=S.meas.filter(m=>m.batch_id===b.id).sort((x,y)=>new Date(x.measured_at)-new Date(y.measured_at));
+  const pts=ms.map(m=>{const dm=m0-Number(m.mass_g);return {...m,mass_g:Number(m.mass_g),h:hoursBetween(b.start_at,m.measured_at),dm,abv:K_ABV*dm/V};});
+  if(!pts.length||Math.abs(pts[0].h)>0.01) pts.unshift({measured_at:b.start_at,mass_g:m0,h:0,dm:0,abv:0,virtual:true});
+  const iv=[];
+  for(let i=1;i<pts.length;i++){const a=pts[i-1],c=pts[i],dh=c.h-a.h;if(dh<=0)continue;
+    iv.push({from:a,to:c,dh,loss:a.mass_g-c.mass_g,rate:(a.mass_g-c.mass_g)/dh*24,mid:(a.h+c.h)/2});}
+  const last=pts[pts.length-1];
+  const dm=last.dm, abv=last.abv;
+  const completion=expLoss?dm/expLoss:null;
+  const residual=Math.max(0,totalSugar-dm/K_LOSS), residualL=residual/V;
+  const maxRate=iv.length?Math.max(...iv.map(i=>i.rate)):null;
+  const curRate=iv.length?iv[iv.length-1].rate:null;
+  // Duruş tahmini: tepe sonrası hız ~ üstel azalma, ln(hız)-zaman doğrusal regresyon
+  let pred=null;
+  if(iv.length>=2){
+    let pk=0;iv.forEach((x,i)=>{if(x.rate>iv[pk].rate)pk=i;});
+    const post=iv.slice(pk).filter(x=>x.rate>0);
+    if(post.length>=2&&pk<iv.length-1){
+      const xs=post.map(p=>p.mid/24), ys=post.map(p=>Math.log(p.rate)), n=xs.length;
+      const mx=xs.reduce((a,v)=>a+v)/n, my=ys.reduce((a,v)=>a+v)/n;
+      let sxy=0,sxx=0;for(let i=0;i<n;i++){sxy+=(xs[i]-mx)*(ys[i]-my);sxx+=(xs[i]-mx)**2;}
+      const slope=sxx?sxy/sxx:0;
+      if(slope<0){
+        const k=-slope, rNow=Math.exp(my+slope*(last.h/24-mx));
+        const raw=dm+rNow/k, finalDm=Math.min(expLoss,raw);
+        const daysTo1=rNow>1?Math.log(rNow)/k:0;
+        pred={k,rNow,finalDm,finalAbv:K_ABV*finalDm/V,capped:raw>expLoss,
+          endAt:new Date(new Date(last.measured_at).getTime()+daysTo1*86400000)};
+      }
+    }
+  }
+  // Bitiş kriteri: ≥5 günlük pencerede ortalama kayıp < 1 g/gün
+  let done=false,stable=null;
+  if(pts.length>=2){
+    const lastT=new Date(last.measured_at).getTime();
+    const win=pts.filter(p=>lastT-new Date(p.measured_at).getTime()>=5*86400000);
+    if(win.length){const ref=win[win.length-1];const days=(lastT-new Date(ref.measured_at).getTime())/86400000;
+      stable=(ref.mass_g-last.mass_g)/days;done=stable<1;}
+  }
+  const days=(Date.now()-new Date(b.start_at))/86400000;
+  return {pts,iv,totalSugar,V,expLoss,potABV,dm,abv,completion,residual,residualL,sweet:sweetClass(residualL),maxRate,curRate,pred,done,stable,days,last};
+}
+function karne(b,c){
+  const sd=b.stage_data||{};
+  const fEnd=sd.cold_crash_at||(c.last&&c.last.measured_at);
+  const dur=fEnd?hoursBetween(b.start_at,fEnd)/24:null;
+  const tr=sd.transfer;
+  const yieldP=tr&&tr.net?tr.net/(tr.net+(tr.loss||0))*100:null;
+  const n=S.tastings.filter(t=>t.batch_id===b.id).length;
+  const abv=b.final_abv!=null?Number(b.final_abv):c.abv;
+  return {abv,dur,yieldP,n};
+}
+
+// ============ RENDER ============
+function render(){
+  S.charts.forEach(c=>c.destroy());S.charts=[];
+  if(!sb) S.view='settings';
+  const nv=S.view==='detail'?'list':S.view;
+  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===nv));
+  const app=$('#app');
+  if(S.view==='list') app.innerHTML=viewList();
+  else if(S.view==='detail'){app.innerHTML=viewDetail();afterDetail();}
+  else if(S.view==='compare'){app.innerHTML=viewCompare();afterCompare();}
+  else app.innerHTML=viewSettings();
+}
+function go(v){S.view=v;render();window.scrollTo(0,0);}
+function openBatch(id){S.batchId=id;go('detail');}
+
+function stepper(b){const i=stageIdx(b.stage);
+  return `<div class="stepper">${STAGES.map((s,j)=>`<div class="step ${j<i?'past':''} ${j===i?'cur':''}"><span></span><small>${s.label}</small></div>`).join('')}</div>`;}
+
+// ---- LİSTE ----
+function viewList(){
+  const order=[...S.batches].sort((a,b)=>(a.stage==='done')-(b.stage==='done')||new Date(b.start_at)-new Date(a.start_at));
+  let h=`<div class="row between"><h2>Batch'ler</h2><button class="btn" onclick="openBatchForm()">+ Yeni batch</button></div>`;
+  if(!order.length) h+=`<div class="card muted">Henüz batch yok.</div>`;
+  for(const b of order){
+    const c=calc(b), abv=b.final_abv!=null?Number(b.final_abv):c.abv;
+    const ready=b.stage==='fermentation'&&c.done;
+    h+=`<div class="card click" onclick="openBatch(${b.id})">
+      <div class="row between"><div><b>${esc(b.code)} · ${esc(b.name)}</b><div class="muted small">${esc(b.fruit||'')} · ${esc(b.yeast_type||'')}</div></div>
+      <span class="pill st-${b.stage}">${stageLabel(b.stage)}</span></div>
+      ${ready?`<div class="alert ok">Bitiş kriteri sağlandı → cold crash’e hazır</div>`:''}
+      <div class="kpis">
+        <div><small>ABV</small><b>%${fmt(abv,1)}</b></div>
+        <div><small>Tamamlanma</small><b>%${fmt(c.completion*100,0)}</b></div>
+        <div><small>Son hız</small><b>${c.curRate!=null?fmt(c.curRate,0)+' g/gün':'–'}</b></div>
+        <div><small>Geçen süre</small><b>${fmt(c.days,1)} gün</b></div>
+      </div>
+      <div class="bar"><i style="width:${Math.min(100,Math.max(0,(c.completion||0)*100))}%"></i></div>
+    </div>`;
+  }
+  return h;
+}
+
+// ---- DETAY ----
+function viewDetail(){
+  const b=getB(S.batchId);if(!b){S.view='list';return viewList();}
+  const c=calc(b), locked=b.final_abv!=null, abv=locked?Number(b.final_abv):c.abv;
+  const hasBottles=S.bottles.some(x=>x.batch_id===b.id);
+  return `<button class="link" onclick="go('list')">← Batch'ler</button>
+  <div class="row between"><h2>${esc(b.code)} · ${esc(b.name)}</h2><span class="pill st-${b.stage}">${stageLabel(b.stage)}</span></div>
+  ${stepper(b)}
+  ${stageIdx(b.stage)>0?`<button class="link small" onclick="stageBack(${b.id})">↩ Önceki aşamaya dön</button>`:''}
+  <div class="card"><div class="kpis k6">
+    <div><small>ABV ${locked?'(final)':''}</small><b>%${fmt(abv,2)}</b></div>
+    <div><small>Δm</small><b>${fmt(c.dm,0)} g</b></div>
+    <div><small>Tamamlanma</small><b>%${fmt(c.completion*100,0)}</b></div>
+    <div><small>Son hız</small><b>${fmt(c.curRate,1)} g/gün</b></div>
+    <div><small>Maks. hız</small><b>${fmt(c.maxRate,1)} g/gün</b></div>
+    <div><small>Etanol</small><b>${fmt(c.dm*K_ETOH,0)} g</b></div>
+    <div><small>Kalan şeker (tahmini)</small><b>${fmt(c.residualL,0)} g/L</b></div>
+    <div><small>Tatlılık</small><b>${c.sweet}</b></div>
+    <div><small>Potansiyel ABV</small><b>%${fmt(c.potABV,1)}</b></div>
+  </div>${predHTML(b,c)}</div>
+  ${stagePanel(b,c)}
+  <div class="card"><h3>ABV – zaman</h3><div class="chart"><canvas id="chAbv"></canvas></div></div>
+  <div class="card"><h3>Fermantasyon hızı</h3><div class="chart"><canvas id="chRate"></canvas></div></div>
+  ${measTable(b,c)}
+  ${eventsHTML(b)}
+  ${tastingsHTML(b)}
+  ${hasBottles&&b.stage!=='stock'?bottlesHTML(b,false):''}
+  ${karneHTML(b,c)}
+  ${recipeHTML(b,c)}`;
+}
+function predHTML(b,c){
+  if(b.stage!=='fermentation') return '';
+  if(c.done) return `<div class="alert ok">Bitiş kriteri sağlandı (son ≥5 günde ort. ${fmt(c.stable,2)} g/gün). Cold crash’e geçebilirsin.</div>`;
+  if(c.pred) return `<div class="alert">Tahmin: son ABV ~%${fmt(c.pred.finalAbv,1)} (Δm ~${fmt(c.pred.finalDm,0)} g)${c.pred.capped?' · tam fermantasyon bekleniyor':''} · hızın 1 g/gün altına inişi ~${fdt(c.pred.endAt.toISOString())}. Bitiş teyidi bundan ~5 gün sonra.</div>`;
+  return `<div class="alert muted">Tahmin için hızın tepe noktasını geçmesi gerekiyor (tepe dahil en az 2 aralık).</div>`;
+}
+function stagePanel(b,c){
+  return ({fermentation:panelFerm,cold_crash:panelCC,transfer:panelTransfer,aging:panelAging,stock:panelStock,
+    done:()=>`<div class="alert ok">Batch tamamlandı.</div>`})[b.stage](b,c);
+}
+
+// ---- AŞAMA PANELLERİ ----
+function panelFerm(b,c){
+  return `<div class="card"><h3>Ölçüm ekle</h3>
+  <div class="grid2">
+    <label>Zaman<input type="datetime-local" id="mT" value="${localInput()}"></label>
+    <label>Kütle (g)<input id="mM" inputmode="decimal" placeholder="son: ${fg(c.last.mass_g)}"></label>
+    <label>Sıcaklık (°C, ops.)<input id="mC" inputmode="decimal"></label>
+    <label>Not<input id="mN"></label>
+  </div>
+  <button class="btn" onclick="addMeas(${b.id})">Kaydet</button>
+  <hr><button class="btn warn" onclick="openFinish(${b.id})">Fermantasyonu bitir → Cold crash</button></div>`;
+}
+function panelCC(b,c){
+  const sd=b.stage_data||{};
+  return `<div class="card"><h3>Cold crash</h3>${timer(sd.cold_crash_at||b.created_at,1,3)}
+  ${checklist(b,'cold_crash')}
+  ${c.residualL>=12?`<div class="alert warn">Kalan şeker yüksek: şişeyi ara ara sık, sertleşiyorsa kapağı hafifçe açıp gazı boşalt.</div>`:''}
+  <button class="btn" onclick="setStageById(${b.id},'transfer')">Aktarmaya geç</button></div>`;
+}
+function panelTransfer(b,c){
+  const tr=(b.stage_data||{}).transfer;
+  return `<div class="card"><h3>Aktarma</h3>${checklist(b,'transfer')}
+  ${tr?`<div class="alert ok">Kaydedildi: ${fmt(tr.net,0)} g aktarıldı, ${fmt(tr.loss,0)} g tortu · verim %${fmt(tr.net/(tr.net+(tr.loss||0))*100,0)}</div>`:''}
+  <div class="grid2">
+    <label>Aktarılan net (g)<input id="tN" inputmode="decimal" value="${tr?tr.net:''}"></label>
+    <label>Tortuda kalan (g)<input id="tL" inputmode="decimal" value="${tr?tr.loss:''}"></label>
+  </div>
+  <label>Şişeler (ör. 3x330, 1x500)<input id="tB" placeholder="3x330"></label>
+  <button class="btn" onclick="saveTransfer(${b.id})">Aktarmayı kaydet</button></div>
+  ${tastingForm(b,'Aktarma')}
+  <div class="card"><button class="btn" onclick="setStageById(${b.id},'aging')">Dinlendirmeye geç</button></div>`;
+}
+function panelAging(b,c){
+  const since=(b.stage_data||{}).aging_at||new Date().toISOString();
+  const wk=Math.max(1,Math.ceil((Date.now()-new Date(since))/604800000));
+  return `<div class="card"><h3>Dinlendirme</h3>${timer(since,14,28)}${checklist(b,'aging')}
+  <p class="small muted">Aktarma günü ile sonraki haftaların tadımlarını radar grafiğinde kıyasla.</p>
+  <button class="btn" onclick="setStageById(${b.id},'stock')">Stoğa geç</button></div>
+  ${tastingForm(b,wk+'. hafta')}`;
+}
+function panelStock(b,c){
+  const bs=S.bottles.filter(x=>x.batch_id===b.id);
+  const allDone=bs.length&&bs.every(x=>x.status==='finished');
+  return bottlesHTML(b,true)+tastingForm(b,'Stok')+`<div class="card">${allDone?'<div class="alert ok">Tüm şişeler bitti.</div>':''}
+  <button class="btn ${allDone?'':'ghost'}" onclick="setStageById(${b.id},'done')">Batch'i kapat</button></div>`;
+}
+function timer(since,minD,maxD){
+  const d=(Date.now()-new Date(since))/86400000, pct=Math.min(100,d/maxD*100);
+  const st=d<minD?'Bekle':d<=maxD?'Hazır':'Süre doldu';
+  return `<div class="row between small"><span>${fmt(d,1)} gün geçti (hedef ${minD}–${maxD} gün)</span><b>${st}</b></div><div class="bar"><i style="width:${pct}%"></i></div>`;
+}
+function checklist(b,st){
+  const ch=((b.stage_data||{}).checks||{})[st]||{};
+  return `<div class="mt">${CHECKS[st].map((t,i)=>`<label class="chk"><input type="checkbox" ${ch[i]?'checked':''} onchange="toggleCheck(${b.id},'${st}',${i},this.checked)"> ${t}</label>`).join('')}</div>`;
+}
+function tastingForm(b,ctx){
+  return `<div class="card"><h3>Tadım ekle</h3>
+  <label>Bağlam<input id="tsC" value="${esc(ctx)}"></label>
+  ${TASTE.map(([k,l])=>`<div class="rate"><span>${l}</span><div class="dots" data-k="${k}">${[1,2,3,4,5].map(n=>`<button type="button" onclick="pickRate(this,${n})">${n}</button>`).join('')}</div></div>`).join('')}
+  <label>Not<textarea id="tsN" rows="2"></textarea></label>
+  <button class="btn" onclick="addTasting(${b.id})">Tadımı kaydet</button></div>`;
+}
+function bottlesHTML(b,actions){
+  const bs=S.bottles.filter(x=>x.batch_id===b.id), now=Date.now();
+  let h=`<div class="card"><h3>Şişeler</h3>`;
+  if(!bs.length) h+=`<p class="muted small">Şişe yok.</p>`;
+  for(const x of bs){
+    let info='';
+    if(x.status==='closed'){const d=x.bottled_at?(now-new Date(x.bottled_at))/86400000:null;
+      info=d==null?'Kapalı':`Kapalı · ${fmt(d,0)} gün${d>180?' · en iyi dönem geçti':d>90?' · 3–6 ay dönemi':''}`;}
+    else if(x.status==='open'){const d=(now-new Date(x.opened_at))/86400000;
+      info=`Açık · ${fmt(d,1)} gün ${d>7?'<b class="red">· 1 haftayı geçti</b>':'· '+fmt(7-d,1)+' gün kaldı'}`;}
+    else info='Bitti';
+    h+=`<div class="bottle"><div><b>${esc(x.label||'Şişe')}</b> · ${fmt(x.size_ml,0)} mL<div class="small muted">${info}</div></div>
+    ${actions?`<div>${x.status==='closed'?`<button class="btn sm" onclick="bottleSet(${x.id},'open')">Aç</button>`:''}${x.status==='open'?`<button class="btn sm" onclick="bottleSet(${x.id},'finished')">Bitti</button>`:''}</div>`:''}</div>`;
+  }
+  if(actions) h+=`<div class="row mt"><input id="sbB" placeholder="Şişe ekle: 2x330"><button class="btn ghost sm" onclick="addBottles(${b.id})">Ekle</button></div>`;
+  return h+`</div>`;
+}
+
+// ---- LİSTELER ----
+function measTable(b,c){
+  const rows=c.pts.filter(p=>!p.virtual).reverse();
+  const ivTo=new Map(c.iv.map(i=>[i.to.id,i]));
+  return `<div class="card"><h3>Ölçümler</h3><div class="tbl"><table>
+  <thead><tr><th>Zaman</th><th>Kütle</th><th>Δm</th><th>ABV</th><th>Hız</th><th></th></tr></thead><tbody>
+  ${rows.map(p=>{const iv=ivTo.get(p.id);return `<tr><td>${fdt(p.measured_at)}${p.note?`<div class="small muted">${esc(p.note)}</div>`:''}${p.temp_c!=null?`<div class="small muted">${fmt(p.temp_c,1)} °C</div>`:''}</td>
+  <td>${fg(p.mass_g)}</td><td>${fmt(p.dm,0)}</td><td>%${fmt(p.abv,1)}</td><td>${iv?fmt(iv.rate,0):'–'}</td>
+  <td><button class="x" onclick="delRow('ferm_measurements',${p.id})">×</button></td></tr>`;}).join('')}
+  </tbody></table></div><p class="small muted">Hız: bir önceki ölçümden bu yana g/gün.</p></div>`;
+}
+function eventsHTML(b){
+  const es=S.events.filter(e=>e.batch_id===b.id);
+  return `<div class="card"><h3>Günlük</h3>
+  <div class="grid2"><label>Zaman<input type="datetime-local" id="eT" value="${localInput()}"></label><label>Gözlem<input id="eX" placeholder="ör. Balon şişti"></label></div>
+  <button class="btn ghost" onclick="addEvent(${b.id})">Gözlem ekle</button>
+  ${[...es].reverse().map(e=>`<div class="li"><div><span class="small muted">${fdt(e.event_at)}</span> ${e.type==='stage'?'<b>'+esc(e.text)+'</b>':esc(e.text)}</div>
+  ${e.type==='observation'?`<button class="x" onclick="delRow('ferm_events',${e.id})">×</button>`:''}</div>`).join('')}</div>`;
+}
+function tastingsHTML(b){
+  const ts=S.tastings.filter(t=>t.batch_id===b.id);if(!ts.length) return '';
+  return `<div class="card"><h3>Tadımlar</h3><div class="chart"><canvas id="chTaste"></canvas></div>
+  ${ts.map(t=>`<div class="li"><div><b>${esc(t.context||'')}</b> <span class="small muted">${fdate(t.tasted_at)}</span>
+  <div class="small">${TASTE.map(([k,l])=>t[k]!=null?`${l} ${t[k]}`:'').filter(Boolean).join(' · ')}</div>
+  ${t.notes?`<div class="small muted">${esc(t.notes)}</div>`:''}</div>
+  <button class="x" onclick="delRow('ferm_tastings',${t.id})">×</button></div>`).join('')}</div>`;
+}
+function karneHTML(b,c){
+  if(stageIdx(b.stage)<1) return '';
+  const k=karne(b,c);
+  return `<div class="card"><h3>Batch karnesi</h3><div class="kpis k6">
+    <div><small>Final ABV</small><b>%${fmt(k.abv,2)}</b></div>
+    <div><small>Fermantasyon süresi</small><b>${fmt(k.dur,1)} gün</b></div>
+    <div><small>Maks. hız</small><b>${fmt(c.maxRate,1)} g/gün</b></div>
+    <div><small>Kalan şeker</small><b>${fmt(c.residualL,0)} g/L · ${c.sweet}</b></div>
+    <div><small>Verim</small><b>${k.yieldP!=null?'%'+fmt(k.yieldP,0):'–'}</b></div>
+    <div><small>Tadım</small><b>${k.n}</b></div>
+  </div></div>`;
+}
+function recipeHTML(b,c){
+  const f=(l,v)=>v==null||v===''?'':`<div><small>${l}</small><span>${esc(v)}</span></div>`;
+  return `<div class="card"><h3>Tarif ve kurulum</h3><div class="info">
+  ${f('Meyve suyu',b.juice)}${f('Hacim',b.juice_ml!=null?b.juice_ml+' mL':null)}
+  ${f('Etiket şekeri',b.label_sugar!=null?b.label_sugar+' g/100 mL':null)}${f('Eklenen şeker',b.added_sugar_g!=null?b.added_sugar_g+' g':null)}
+  ${f('Toplam şeker',fmt(c.totalSugar,0)+' g')}${f('Son hacim (V)',fmt(c.V,2)+' L')}
+  ${f('Beklenen Δm',fmt(c.expLoss,0)+' g')}${f('Maya',[b.yeast_type,b.yeast_g!=null?b.yeast_g+' g':''].filter(Boolean).join(' · '))}
+  ${f('Besin',b.nutrient)}${f('Kap',b.container)}${f('Konum',b.location)}
+  ${f('Başlangıç',fdt(b.start_at))}${f('m₀',fg(b.m0_g)+' g')}${f('Not',b.notes)}
+  </div><div class="row mt"><button class="btn ghost" onclick="openBatchForm(${b.id})">Düzenle</button><button class="btn danger" onclick="delBatch(${b.id})">Sil</button></div></div>`;
+}
+
+// ---- KARŞILAŞTIRMA ----
+function viewCompare(){
+  if(!S.cmpInit){S.batches.forEach(b=>S.cmp.add(b.id));S.cmpInit=true;}
+  const sel=S.batches.filter(b=>S.cmp.has(b.id));
+  return `<h2>Karşılaştır</h2>
+  <div class="card chips">${S.batches.map(b=>`<label class="chip ${S.cmp.has(b.id)?'on':''}"><input type="checkbox" ${S.cmp.has(b.id)?'checked':''} onchange="toggleCmp(${b.id})"> ${esc(b.code)} ${esc(b.name)}</label>`).join('')}</div>
+  <div class="card"><h3>ABV – zaman</h3><div class="chart"><canvas id="cAbv"></canvas></div></div>
+  <div class="card"><h3>Hız – zaman</h3><div class="chart"><canvas id="cRate"></canvas></div></div>
+  <div class="card"><h3>Tadım profili (son tadım)</h3><div class="chart"><canvas id="cTaste"></canvas></div></div>
+  <div class="card"><h3>Karne</h3><div class="tbl"><table><thead><tr><th></th>${sel.map(b=>`<th>${esc(b.code)}</th>`).join('')}</tr></thead><tbody>${cmpRows(sel)}</tbody></table></div></div>`;
+}
+function cmpRows(sel){
+  const d=sel.map(b=>{const c=calc(b);return {b,c,k:karne(b,c)};});
+  const row=(l,fn)=>`<tr><td class="muted">${l}</td>${d.map(x=>`<td>${fn(x)}</td>`).join('')}</tr>`;
+  return [
+    row('İsim',x=>esc(x.b.name)),row('Aşama',x=>stageLabel(x.b.stage)),
+    row('ABV',x=>'%'+fmt(x.k.abv,2)),row('Tamamlanma',x=>'%'+fmt(x.c.completion*100,0)),
+    row('Maks. hız',x=>fmt(x.c.maxRate,1)+' g/gün'),row('Süre',x=>fmt(x.k.dur,1)+' gün'),
+    row('Kalan şeker',x=>fmt(x.c.residualL,0)+' g/L'),row('Verim',x=>x.k.yieldP!=null?'%'+fmt(x.k.yieldP,0):'–'),
+    row('Tadım',x=>x.k.n)
+  ].join('');
+}
+function toggleCmp(id){S.cmp.has(id)?S.cmp.delete(id):S.cmp.add(id);render();}
+
+// ---- AYARLAR ----
+function viewSettings(){
+  const c=cfg();
+  return `<h2>Ayarlar</h2><div class="card"><h3>Supabase bağlantısı</h3>
+  <p class="small muted">Bu bilgiler sadece bu cihazda saklanır. Her cihazda bir kere gir.</p>
+  <label>Project URL<input id="sU" value="${esc(c.url||'')}" placeholder="https://xxxx.supabase.co" autocapitalize="off"></label>
+  <label>Publishable (anon) key<input id="sK" value="${esc(c.key||'')}" autocapitalize="off"></label>
+  <button class="btn" onclick="saveCfg()">Kaydet ve bağlan</button></div>
+  <div class="card"><h3>Dışa aktar</h3><div class="row">
+  <button class="btn ghost" onclick="exportCSV()">Ölçümler (CSV)</button>
+  <button class="btn ghost" onclick="exportJSON()">Tam yedek (JSON)</button></div></div>
+  <div class="card small muted">Formüller: ABV ≈ 0,1325 × Δm / V · Etanol ≈ 1,045 × Δm · Tüketilen şeker ≈ Δm / 0,447 · Bitiş: ≥5 günlük pencerede ortalama kayıp &lt; 1 g/gün · Tatlılık: &lt;4 kuru, &lt;12 yarı kuru, &lt;45 yarı tatlı g/L</div>`;
+}
+
+// ============ GRAFİKLER ============
+Chart.defaults.font.family='system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
+Chart.defaults.color='#6b5b50';
+function mkChart(id,conf){const el=document.getElementById(id);if(el) S.charts.push(new Chart(el,conf));}
+function lineOpts(yTitle){return {responsive:true,maintainAspectRatio:false,interaction:{mode:'nearest',intersect:false},
+  plugins:{legend:{labels:{boxWidth:12}},tooltip:{callbacks:{
+    title:it=>{const h=it[0].parsed.x;return `${fmt(h,1)} sa · ${fmt(h/24,2)} gün`;},
+    label:ctx=>ctx.raw.t?`${ctx.dataset.label}: ${ctx.raw.t}`:`${ctx.dataset.label}: ${fmt(ctx.parsed.y,2)}`}}},
+  scales:{x:{type:'linear',min:0,title:{display:true,text:'Başlangıçtan beri saat'}},y:{beginAtZero:true,title:{display:true,text:yTitle}}}};}
+function radarOpts(){return {responsive:true,maintainAspectRatio:false,scales:{r:{min:0,max:5,ticks:{stepSize:1,backdropColor:'transparent'}}},plugins:{legend:{labels:{boxWidth:12}}}};}
+function afterDetail(){
+  const b=getB(S.batchId);if(!b) return;const c=calc(b);
+  const ev=S.events.filter(e=>e.batch_id===b.id).map(e=>({x:hoursBetween(b.start_at,e.event_at),y:0,t:e.text}));
+  const ds=[{label:'ABV %',data:c.pts.map(p=>({x:p.h,y:p.abv})),showLine:true,borderColor:COLORS[0],backgroundColor:COLORS[0],tension:.25}];
+  if(c.pred&&b.stage==='fermentation') ds.push({label:'Tahmin',data:[{x:c.last.h,y:c.last.abv},{x:Math.max(c.last.h,hoursBetween(b.start_at,c.pred.endAt)),y:c.pred.finalAbv}],showLine:true,borderDash:[6,4],borderColor:'#999',backgroundColor:'#999',pointRadius:0});
+  if(ev.length) ds.push({label:'Olay',data:ev,pointStyle:'triangle',pointRadius:7,backgroundColor:'#2e86ab',borderColor:'#2e86ab'});
+  mkChart('chAbv',{type:'scatter',data:{datasets:ds},options:lineOpts('ABV %')});
+  mkChart('chRate',{type:'scatter',data:{datasets:[{label:'Hız (g/gün)',data:c.iv.map(i=>({x:i.mid,y:i.rate})),showLine:true,borderColor:COLORS[1],backgroundColor:COLORS[1],tension:.25}]},options:lineOpts('g/gün')});
+  const ts=S.tastings.filter(t=>t.batch_id===b.id);
+  if(ts.length) mkChart('chTaste',{type:'radar',data:{labels:TASTE.map(x=>x[1]),datasets:ts.map((t,i)=>({label:t.context||fdate(t.tasted_at),data:TASTE.map(([k])=>t[k]),borderColor:COLORS[i%COLORS.length],backgroundColor:COLORS[i%COLORS.length]+'22'}))},options:radarOpts()});
+}
+function afterCompare(){
+  const sel=S.batches.filter(b=>S.cmp.has(b.id));
+  mkChart('cAbv',{type:'scatter',data:{datasets:sel.map(b=>{const c=calc(b);return {label:b.code+' '+b.name,data:c.pts.map(p=>({x:p.h,y:p.abv})),showLine:true,borderColor:colorOf(b),backgroundColor:colorOf(b),tension:.25};})},options:lineOpts('ABV %')});
+  mkChart('cRate',{type:'scatter',data:{datasets:sel.map(b=>{const c=calc(b);return {label:b.code+' '+b.name,data:c.iv.map(i=>({x:i.mid,y:i.rate})),showLine:true,borderColor:colorOf(b),backgroundColor:colorOf(b),tension:.25};})},options:lineOpts('g/gün')});
+  const tsets=sel.map(b=>({b,t:S.tastings.filter(t=>t.batch_id===b.id).pop()})).filter(x=>x.t);
+  if(!tsets.length){const el=$('#cTaste');if(el) el.parentElement.innerHTML='<p class="muted small">Henüz tadım yok.</p>';}
+  else mkChart('cTaste',{type:'radar',data:{labels:TASTE.map(x=>x[1]),datasets:tsets.map(({b,t})=>({label:b.code+' · '+(t.context||''),data:TASTE.map(([k])=>t[k]),borderColor:colorOf(b),backgroundColor:colorOf(b)+'22'}))},options:radarOpts()});
+}
+
+// ============ İŞLEMLER ============
+async function addMeas(id){
+  const m=num($('#mM').value);if(m==null||isNaN(m)) return toast('Kütle gir',true);
+  await db(sb.from('ferm_measurements').insert({batch_id:id,measured_at:toISO($('#mT').value),mass_g:m,temp_c:num($('#mC').value),note:$('#mN').value.trim()||null}));
+  toast('Ölçüm kaydedildi');await refresh();
+}
+async function addEvent(id){
+  const t=$('#eX').value.trim();if(!t) return toast('Gözlem yaz',true);
+  await db(sb.from('ferm_events').insert({batch_id:id,event_at:toISO($('#eT').value),type:'observation',text:t}));
+  toast('Gözlem eklendi');await refresh();
+}
+async function delRow(t,id){if(!confirm('Silinsin mi?')) return;await db(sb.from(t).delete().eq('id',id));await refresh();}
+function openFinish(id){
+  const c=calc(getB(id));
+  modal(`<h3>Fermantasyonu bitir</h3>
+  <p class="small">Balonu <b>çıkarmadan</b> son tartımı yap. Final ABV bu değerle kilitlenecek.</p>
+  <label>Son kütle (g)<input id="fM" inputmode="decimal" value="${c.last.mass_g}"></label>
+  <label>Zaman<input type="datetime-local" id="fT" value="${localInput()}"></label>
+  <div class="row"><button class="btn" onclick="finishFerm(${id})">Onayla</button><button class="btn ghost" onclick="closeModal()">Vazgeç</button></div>`);
+}
+async function finishFerm(id){
+  const b=getB(id),c=calc(b);
+  const m=num($('#fM').value);if(m==null||isNaN(m)) return toast('Kütle gir',true);
+  const t=toISO($('#fT').value);
+  if(m!==c.last.mass_g) await db(sb.from('ferm_measurements').insert({batch_id:id,measured_at:t,mass_g:m,note:'Final tartım'}));
+  const fabv=K_ABV*(Number(b.m0_g)-m)/c.V;
+  closeModal();
+  await setStage(b,'cold_crash',{cold_crash_at:t},{final_mass_g:m,final_abv:Math.round(fabv*100)/100});
+}
+async function setStage(b,stage,sdPatch={},extra={}){
+  const sd={...(b.stage_data||{}),...sdPatch};
+  await db(sb.from('ferm_batches').update({stage,stage_data:sd,...extra}).eq('id',b.id));
+  await db(sb.from('ferm_events').insert({batch_id:b.id,event_at:new Date().toISOString(),type:'stage',text:`${stageLabel(b.stage)} → ${stageLabel(stage)}`}));
+  toast(stageLabel(stage)+' aşamasına geçildi');await refresh();window.scrollTo(0,0);
+}
+async function setStageById(id,st){
+  const key={transfer:'transfer_at',aging:'aging_at',stock:'stock_at',done:'done_at'}[st];
+  await setStage(getB(id),st,key?{[key]:new Date().toISOString()}:{});
+}
+async function stageBack(id){
+  const b=getB(id),i=stageIdx(b.stage);
+  if(i<1||!confirm('Önceki aşamaya dönülsün mü?')) return;
+  const prev=STAGES[i-1].id;
+  await setStage(b,prev,{},prev==='fermentation'?{final_abv:null,final_mass_g:null}:{});
+}
+async function toggleCheck(id,st,i,v){
+  const b=getB(id),sd={...(b.stage_data||{})};
+  sd.checks={...(sd.checks||{})};sd.checks[st]={...(sd.checks[st]||{}),[i]:v};
+  await db(sb.from('ferm_batches').update({stage_data:sd}).eq('id',id));b.stage_data=sd;
+}
+function parseBottles(s){
+  const out=[];
+  (s||'').split(/[,;]+/).forEach(p=>{p=p.trim();const m=p.match(/^(\d+)\s*[x×*]\s*(\d+)$/i);
+    if(m){for(let i=0;i<+m[1];i++) out.push(+m[2]);} else if(/^\d+$/.test(p)) out.push(+p);});
+  return out;
+}
+async function insertBottles(b,list){
+  if(!list.length) return;
+  const n=S.bottles.filter(x=>x.batch_id===b.id).length, now=new Date().toISOString();
+  await db(sb.from('ferm_bottles').insert(list.map((ml,i)=>({batch_id:b.id,label:`${b.code}-${n+i+1}`,size_ml:ml,bottled_at:now}))));
+}
+async function saveTransfer(id){
+  const b=getB(id),net=num($('#tN').value),loss=num($('#tL').value)||0;
+  if(net==null||isNaN(net)) return toast('Aktarılan miktarı gir',true);
+  const sd={...(b.stage_data||{}),transfer:{net,loss,at:new Date().toISOString()}};
+  await db(sb.from('ferm_batches').update({stage_data:sd}).eq('id',id));
+  await insertBottles(b,parseBottles($('#tB').value));
+  toast('Aktarma kaydedildi');await refresh();
+}
+async function addBottles(id){
+  const l=parseBottles($('#sbB').value);if(!l.length) return toast('Ör. 2x330 yaz',true);
+  await insertBottles(getB(id),l);await refresh();
+}
+async function bottleSet(id,st){
+  const p={status:st};
+  if(st==='open') p.opened_at=new Date().toISOString();
+  if(st==='finished') p.finished_at=new Date().toISOString();
+  await db(sb.from('ferm_bottles').update(p).eq('id',id));await refresh();
+}
+function pickRate(el,n){const d=el.parentElement;d.dataset.v=n;[...d.children].forEach((x,i)=>x.classList.toggle('on',i<n));}
+async function addTasting(id){
+  const row={batch_id:id,context:$('#tsC').value.trim()||null,notes:$('#tsN').value.trim()||null,tasted_at:new Date().toISOString()};
+  let any=false;
+  document.querySelectorAll('.dots').forEach(d=>{if(d.dataset.v){row[d.dataset.k]=+d.dataset.v;any=true;}});
+  if(!any) return toast('En az bir puan seç',true);
+  await db(sb.from('ferm_tastings').insert(row));toast('Tadım kaydedildi');await refresh();
+}
+
+// ---- BATCH FORMU ----
+const BF=[
+  ['code','Kod','text'],['name','İsim','text'],['fruit','Meyve','text'],['juice','Meyve suyu (marka)','text'],
+  ['juice_ml','Meyve suyu (mL)','num'],['label_sugar','Etiket şekeri (g/100 mL)','num'],['added_sugar_g','Eklenen şeker (g)','num'],
+  ['yeast_type','Maya türü','text'],['yeast_g','Maya (g)','num'],['nutrient','Besin','text'],
+  ['container','Kap','text'],['location','Konum','text'],
+  ['start_at','Başlangıç','dt'],['m0_g','Başlangıç kütlesi m₀ (g)','num'],
+  ['volume_l','Son hacim V (L) – boş: otomatik','num'],['expected_loss_g','Beklenen Δm (g) – boş: otomatik','num'],
+  ['notes','Notlar','text']
+];
+function openBatchForm(id){
+  const b=id?getB(id):null;
+  const next='#'+(S.batches.reduce((m,x)=>Math.max(m,parseInt(String(x.code).replace(/\D/g,''))||0),0)+1);
+  const l=S.batches[S.batches.length-1]||{};
+  const v=b||{code:next,juice_ml:1000,added_sugar_g:0,yeast_type:l.yeast_type,yeast_g:l.yeast_g,nutrient:l.nutrient,container:l.container,location:l.location,start_at:new Date().toISOString()};
+  modal(`<h3>${b?'Batch düzenle':'Yeni batch'}</h3>
+  <div class="grid2" oninput="bfPreview()">${BF.map(([k,lb,t])=>`<label class="${k==='notes'?'full':''}">${lb}<input id="bf_${k}" type="${t==='dt'?'datetime-local':'text'}" ${t==='num'?'inputmode="decimal"':''} value="${esc(t==='dt'?localInput(new Date(v[k])):(v[k]??''))}"></label>`).join('')}</div>
+  <div id="bfPrev" class="alert"></div>
+  <div class="row"><button class="btn" onclick="saveBatch(${id||0})">Kaydet</button><button class="btn ghost" onclick="closeModal()">Vazgeç</button></div>`);
+  bfPreview();
+}
+function bfRead(){
+  const o={};
+  BF.forEach(([k,l,t])=>{const val=$('#bf_'+k).value;o[k]=t==='num'?num(val):t==='dt'?(val?toISO(val):null):(val.trim()||null);});
+  if(o.juice_ml==null) o.juice_ml=1000;
+  return o;
+}
+function bfPreview(){
+  const o=bfRead();
+  const c=calc({...o,id:-1,m0_g:o.m0_g||0,start_at:o.start_at||new Date().toISOString()});
+  $('#bfPrev').innerHTML=`Toplam şeker <b>${fmt(c.totalSugar,0)} g</b> · V <b>${fmt(c.V,2)} L</b> · Beklenen Δm <b>${fmt(c.expLoss,0)} g</b> · Potansiyel <b>%${fmt(c.potABV,1)}</b>`;
+}
+async function saveBatch(id){
+  const o=bfRead();
+  if(!o.code||!o.name||o.m0_g==null||!o.start_at) return toast('Kod, isim, başlangıç ve m₀ zorunlu',true);
+  if(id){
+    const b=getB(id);
+    await db(sb.from('ferm_batches').update(o).eq('id',id));
+    const first=S.meas.find(m=>m.batch_id===id&&new Date(m.measured_at).getTime()===new Date(b.start_at).getTime());
+    if(first) await db(sb.from('ferm_measurements').update({measured_at:o.start_at,mass_g:o.m0_g}).eq('id',first.id));
+  } else {
+    const r=await db(sb.from('ferm_batches').insert(o).select().single());
+    await db(sb.from('ferm_measurements').insert({batch_id:r.id,measured_at:o.start_at,mass_g:o.m0_g,note:'Başlangıç'}));
+    S.batchId=r.id;S.view='detail';
+  }
+  closeModal();toast('Kaydedildi');await refresh();
+}
+async function delBatch(id){
+  const b=getB(id);
+  if(prompt(`Silmek için batch kodunu yaz: ${b.code}`)!==b.code) return;
+  await db(sb.from('ferm_batches').delete().eq('id',id));
+  toast('Silindi');S.view='list';await refresh();
+}
+
+// ---- AYAR / DIŞA AKTAR ----
+async function saveCfg(){
+  localStorage.setItem('ferm_cfg',JSON.stringify({url:$('#sU').value.trim(),key:$('#sK').value.trim()}));
+  if(!initClient()) return toast('URL ve key gir',true);
+  try{await loadAll();toast('Bağlandı: '+S.batches.length+' batch');S.view='list';render();}
+  catch(e){toast('Bağlanamadı: '+e.message,true);}
+}
+function download(name,text,type){
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;
+  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1500);
+}
+function exportCSV(){
+  const rows=[['batch','isim','zaman','saat','kutle_g','dm_g','abv','sicaklik','not']];
+  S.batches.forEach(b=>{calc(b).pts.filter(p=>!p.virtual).forEach(p=>rows.push([b.code,b.name,p.measured_at,p.h.toFixed(2),p.mass_g,p.dm.toFixed(1),p.abv.toFixed(2),p.temp_c??'',p.note??'']));});
+  download('fermantasyon.csv','\ufeff'+rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(';')).join('\n'),'text/csv');
+}
+function exportJSON(){
+  download('ferm-yedek-'+new Date().toISOString().slice(0,10)+'.json',
+    JSON.stringify({batches:S.batches,measurements:S.meas,events:S.events,tastings:S.tastings,bottles:S.bottles},null,1),'application/json');
+}
+
+// ============ BAŞLAT ============
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>go(b.dataset.v));
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&sb&&!$('#modal').innerHTML) refresh();});
+if(initClient()) refresh(); else render();
+</script>
+</body>
+</html>
