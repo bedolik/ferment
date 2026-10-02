@@ -103,7 +103,7 @@ const STAGES=[
   {id:'transfer',label:'Aktarma'},{id:'aging',label:'Dinlendirme'},
   {id:'stock',label:'Stok'},{id:'done',label:'Bitti'}
 ];
-const K_ABV=0.1325, K_LOSS=0.447, K_ETOH=1.045;
+const K_ABV=0.1325, K_ETOH=1.045, K_FRUIT=0.489, K_SUC=0.515, EFF=0.94, RHO_WINE=0.99;
 const COLORS=['#e07a2f','#c0392b','#2e86ab','#6a994e','#8e44ad','#d4a017'];
 const TASTE=[['aroma','Aroma'],['acidity','Asidite'],['sweetness','Tatlılık'],['alcohol_heat','Alkol sertliği'],['clarity','Berraklık']];
 const CHECKS={
@@ -153,10 +153,12 @@ async function refresh(){if(!sb){render();return;}try{await loadAll();}catch(e){
 // ============ HESAP MOTORU ============
 function sweetClass(g){if(g<4)return 'Kuru';if(g<12)return 'Yarı kuru';if(g<45)return 'Yarı tatlı';return 'Tatlı';}
 function calc(b){
-  const juice=Number(b.juice_ml)||0, added=Number(b.added_sugar_g)||0;
-  const totalSugar=juice*(Number(b.label_sugar)||0)/100+added;
-  const V=b.volume_l!=null?Number(b.volume_l):juice/1000+added*0.00062;
-  const expLoss=b.expected_loss_g!=null?Number(b.expected_loss_g):totalSugar*K_LOSS;
+  const juice=Number(b.juice_ml)||0, added=Number(b.added_sugar_g)||0, ls=Number(b.label_sugar)||0;
+  const juiceSugar=juice*ls/100, totalSugar=juiceSugar+added;
+  const theo=juiceSugar*K_FRUIT+added*K_SUC;
+  const kEff=totalSugar?theo*EFF/totalSugar:K_FRUIT*EFF;
+  const expLoss=b.expected_loss_g!=null?Number(b.expected_loss_g):theo*EFF;
+  const V=b.volume_l!=null?Number(b.volume_l):(juice*(1+0.0038*ls)+added-expLoss)/RHO_WINE/1000;
   const potABV=K_ABV*expLoss/V;
   const m0=Number(b.m0_g);
   const ms=S.meas.filter(m=>m.batch_id===b.id).sort((x,y)=>new Date(x.measured_at)-new Date(y.measured_at));
@@ -168,7 +170,7 @@ function calc(b){
   const last=pts[pts.length-1];
   const dm=last.dm, abv=last.abv;
   const completion=expLoss?dm/expLoss:null;
-  const residual=Math.max(0,totalSugar-dm/K_LOSS), residualL=residual/V;
+  const residual=Math.max(0,totalSugar-dm/kEff), residualL=residual/V;
   const maxRate=iv.length?Math.max(...iv.map(i=>i.rate)):null;
   const curRate=iv.length?iv[iv.length-1].rate:null;
   // Duruş tahmini: tepe sonrası hız ~ üstel azalma, ln(hız)-zaman doğrusal regresyon
@@ -461,7 +463,7 @@ function viewSettings(){
   <div class="card"><h3>Dışa aktar</h3><div class="row">
   <button class="btn ghost" onclick="exportCSV()">Ölçümler (CSV)</button>
   <button class="btn ghost" onclick="exportJSON()">Tam yedek (JSON)</button></div></div>
-  <div class="card small muted">Formüller: ABV ≈ 0,1325 × Δm / V · Etanol ≈ 1,045 × Δm · Tüketilen şeker ≈ Δm / 0,447 · Bitiş: ≥5 günlük pencerede ortalama kayıp &lt; 1 g/gün · Tatlılık: &lt;4 kuru, &lt;12 yarı kuru, &lt;45 yarı tatlı g/L</div>`;
+  <div class="card small muted">Formüller: ABV ≈ 0,1325 × Δm / V · Etanol ≈ 1,045 × Δm · Tüketilen şeker ≈ Δm / (0,94 × teorik verim) · Bitiş: ≥5 günlük pencerede ortalama kayıp &lt; 1 g/gün · Tatlılık: &lt;4 kuru, &lt;12 yarı kuru, &lt;45 yarı tatlı g/L</div>`;
 }
 
 // ============ GRAFİKLER ============
